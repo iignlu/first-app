@@ -29,6 +29,9 @@ export const AyahCard: React.FC<AyahCardProps> = ({
     const [showTafseer, setShowTafseer] = useState(false);
     const viewShotRef = useRef<ViewShot>(null);
 
+    const soundRef = useRef<Audio.Sound | null>(null);
+    const nextSoundRef = useRef<Audio.Sound | null>(null);
+
     // Configure audio for background playback
     useEffect(() => {
         const configureAudio = async () => {
@@ -48,52 +51,98 @@ export const AyahCard: React.FC<AyahCardProps> = ({
         configureAudio();
     }, []);
 
-    // Unload sound when unmounting or when ayah changes
+    // Unload sound when unmounting
     useEffect(() => {
         return () => {
-            if (sound) {
-                sound.unloadAsync();
+            if (soundRef.current) {
+                soundRef.current.unloadAsync();
+            }
+            if (nextSoundRef.current) {
+                nextSoundRef.current.unloadAsync();
             }
         };
-    }, [sound]);
+    }, []);
 
     // Reset audio state when ayah changes
     useEffect(() => {
-        if (sound) {
-            sound.unloadAsync();
+        const resetAudio = async () => {
+            if (soundRef.current) {
+                await soundRef.current.unloadAsync();
+                soundRef.current = null;
+            }
+            if (nextSoundRef.current) {
+                await nextSoundRef.current.unloadAsync();
+                nextSoundRef.current = null;
+            }
             setSound(null);
-        }
-        setIsPlaying(false);
-        setCurrentAudioIndex(0);
+            setIsPlaying(false);
+            setCurrentAudioIndex(0);
+        };
+        resetAudio();
     }, [ayah.id]);
 
     const playNextAudio = async (index: number) => {
         if (index >= ayah.audioUrls.length) {
+            // Sequence finished: Clean up the last sound
+            if (soundRef.current) {
+                soundRef.current.setOnPlaybackStatusUpdate(null);
+                await soundRef.current.unloadAsync();
+                soundRef.current = null;
+            }
             setIsPlaying(false);
             setCurrentAudioIndex(0);
             return;
         }
 
         try {
-            if (sound) {
-                await sound.unloadAsync();
+            let soundToPlay: Audio.Sound;
+
+            // 1. Use preloaded sound if available
+            if (nextSoundRef.current) {
+                soundToPlay = nextSoundRef.current;
+                nextSoundRef.current = null;
+            } else {
+                // 2. Or load it now
+                const { sound } = await Audio.Sound.createAsync(
+                    { uri: ayah.audioUrls[index] },
+                    { shouldPlay: false }
+                );
+                soundToPlay = sound;
             }
 
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: ayah.audioUrls[index] },
-                { shouldPlay: true }
-            );
+            // 3. Unload previous sound safely
+            if (soundRef.current) {
+                soundRef.current.setOnPlaybackStatusUpdate(null); // Prevent double-trigger
+                await soundRef.current.unloadAsync();
+            }
 
-            setSound(newSound);
-            setIsPlaying(true);
+            // 4. Set as current and play
+            soundRef.current = soundToPlay;
+            setSound(soundToPlay);
             setCurrentAudioIndex(index);
+            setIsPlaying(true);
 
-            newSound.setOnPlaybackStatusUpdate((status) => {
+            soundToPlay.setOnPlaybackStatusUpdate((status) => {
                 if (status.isLoaded && status.didJustFinish) {
-                    // Play next
                     playNextAudio(index + 1);
                 }
             });
+
+            await soundToPlay.playAsync();
+
+            // 5. Preload next sound
+            if (index + 1 < ayah.audioUrls.length) {
+                try {
+                    const { sound: nextSound } = await Audio.Sound.createAsync(
+                        { uri: ayah.audioUrls[index + 1] },
+                        { shouldPlay: false }
+                    );
+                    nextSoundRef.current = nextSound;
+                } catch (e) {
+                    console.log('Error preloading next audio', e);
+                }
+            }
+
         } catch (error) {
             console.error('Error playing audio sequence', error);
             setIsPlaying(false);
@@ -103,11 +152,11 @@ export const AyahCard: React.FC<AyahCardProps> = ({
     const toggleAudio = async () => {
         if (!ayah.audioUrls || ayah.audioUrls.length === 0) return;
 
-        if (isPlaying && sound) {
-            await sound.pauseAsync();
+        if (isPlaying && soundRef.current) {
+            await soundRef.current.pauseAsync();
             setIsPlaying(false);
-        } else if (sound) {
-            await sound.playAsync();
+        } else if (soundRef.current) {
+            await soundRef.current.playAsync();
             setIsPlaying(true);
         } else {
             // Start from beginning

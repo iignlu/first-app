@@ -59,8 +59,8 @@ export default function App() {
           component={DailyScreen}
           options={{
             title: 'الورد اليومي',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="book-outline" size={size} color={color} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons name={focused ? "book" : "book-outline"} size={size} color={color} />
             ),
           }}
         />
@@ -70,8 +70,8 @@ export default function App() {
           component={PrayerScreen}
           options={{
             title: 'الصلاة',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="time-outline" size={size} color={color} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons name={focused ? "time" : "time-outline"} size={size} color={color} />
             ),
           }}
         />
@@ -81,8 +81,8 @@ export default function App() {
           component={AdhkarScreen}
           options={{
             title: 'الأذكار',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="moon-outline" size={size} color={color} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons name={focused ? "moon" : "moon-outline"} size={size} color={color} />
             ),
           }}
         />
@@ -92,8 +92,8 @@ export default function App() {
           component={TasbihScreen}
           options={{
             title: 'التسبيح',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="finger-print-outline" size={size} color={color} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons name={focused ? "finger-print" : "finger-print-outline"} size={size} color={color} />
             ),
           }}
         />
@@ -103,8 +103,8 @@ export default function App() {
           component={FavoritesScreen}
           options={{
             title: 'المفضلة',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="heart-outline" size={size} color={color} />
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons name={focused ? "heart" : "heart-outline"} size={size} color={color} />
             ),
           }}
         />

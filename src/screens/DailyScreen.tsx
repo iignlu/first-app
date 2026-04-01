@@ -9,7 +9,7 @@ import { addFavorite, removeFavorite, isFavoriteAyah } from '../storage/favorite
 import { getUserName, saveUserName } from '../storage/userStorage';
 import { typography } from '../theme/typography';
 import { Ionicons } from '@expo/vector-icons';
-import { scheduleAzkarNotifications } from '../utils/notifications';
+import { scheduleAzkarNotifications, cancelNotificationByTitle } from '../utils/notifications';
 import * as Notifications from 'expo-notifications';
 
 Notifications.setNotificationHandler({
@@ -60,7 +60,7 @@ export const DailyScreen = () => {
     const setupNotifications = async () => {
         const { status } = await Notifications.requestPermissionsAsync();
         if (status === 'granted') {
-            await Notifications.cancelAllScheduledNotificationsAsync();
+            await cancelNotificationByTitle("آية اليوم 📖");
 
             await Notifications.scheduleNotificationAsync({
                 content: {
@@ -144,7 +144,7 @@ export const DailyScreen = () => {
 
                             <View style={styles.buttonContainer}>
                                 <PrimaryButton
-                                    title="آيات أخرى"
+                                    title="آيه أخرى"
                                     onPress={fetchNewAyah}
                                     loading={loading}
                                     icon={<Ionicons name="refresh" size={20} color="#FFF" />}

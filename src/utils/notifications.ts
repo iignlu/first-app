@@ -18,19 +18,23 @@ const AZKAR = [
     "اللهم أعني على ذكرك وشكرك وحسن عبادتك"
 ];
 
+export const cancelNotificationByTitle = async (title: string) => {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const notification of scheduled) {
+        if (notification.content.title === title) {
+            await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        }
+    }
+};
+
 export const scheduleAzkarNotifications = async () => {
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return;
 
     // Cancel existing Azkar notifications to avoid duplicates
-    // We can use a specific identifier if needed, but for now we'll just schedule new ones
-    // Note: In a real app, you might want to manage IDs more carefully
-
-    // Schedule 12 notifications for the next 12 hours as a simple implementation
-    // Or use a repeating interval. Expo's repeating interval is usually minimum 15 mins or hourly.
+    await cancelNotificationByTitle("ذكر 📿");
 
     // Schedule 24 notifications for the next 24 hours (one every hour)
-    // This ensures variety in the Azkar
     for (let i = 1; i <= 24; i++) {
         await Notifications.scheduleNotificationAsync({
             content: {
@@ -40,6 +44,48 @@ export const scheduleAzkarNotifications = async () => {
             trigger: {
                 type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
                 seconds: i * 3600,
+                repeats: false,
+            },
+        });
+    }
+};
+
+export const schedulePrayerNotifications = async (prayerTimes: any) => {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const prayers = [
+        { key: 'fajr', name: 'الفجر', time: prayerTimes.fajr },
+        { key: 'dhuhr', name: 'الظهر', time: prayerTimes.dhuhr },
+        { key: 'asr', name: 'العصر', time: prayerTimes.asr },
+        { key: 'maghrib', name: 'المغرب', time: prayerTimes.maghrib },
+        { key: 'isha', name: 'العشاء', time: prayerTimes.isha },
+    ];
+
+    const now = new Date();
+
+    for (const prayer of prayers) {
+        const prayerTime = new Date(prayer.time);
+
+        // If prayer time is in the past for today, don't schedule
+        if (prayerTime.getTime() <= now.getTime()) continue;
+
+        const title = `حان وقت صلاة ${prayer.name} 🕌`;
+
+        // Cancel existing notification for this prayer to avoid duplicates
+        await cancelNotificationByTitle(title);
+
+        const secondsUntilPrayer = (prayerTime.getTime() - now.getTime()) / 1000;
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: title,
+                body: "حي على الصلاة، حي على الفلاح",
+                sound: true,
+            },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds: secondsUntilPrayer,
                 repeats: false,
             },
         });

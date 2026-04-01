@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { typography } from '../theme/typography';
 import * as Location from 'expo-location';
-import { Coordinates, CalculationMethod, PrayerTimes, Qibla } from 'adhan';
+import { Coordinates, CalculationMethod, PrayerTimes, Prayer } from 'adhan';
 import { Ionicons } from '@expo/vector-icons';
-import { Magnetometer } from 'expo-sensors';
+import { schedulePrayerNotifications } from '../utils/notifications';
 
 export const PrayerScreen = () => {
     const colors = useThemeColors();
-    const [location, setLocation] = useState<Location.LocationObject | null>(null);
     const [cityName, setCityName] = useState<string>('');
     const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
-    const [qiblaDirection, setQiblaDirection] = useState<number>(0);
-    const [compassHeading, setCompassHeading] = useState<number>(0);
+    const [nextPrayer, setNextPrayer] = useState<string | null>(null);
+    const [timeRemaining, setTimeRemaining] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -29,11 +28,10 @@ export const PrayerScreen = () => {
                 return;
             }
 
-            // High accuracy for better Qibla and Prayer Times
+            // High accuracy for better Prayer Times
             let location = await Location.getCurrentPositionAsync({
                 accuracy: Location.Accuracy.High
             });
-            setLocation(location);
 
             // Get City Name
             try {
@@ -43,10 +41,13 @@ export const PrayerScreen = () => {
                 });
                 if (reverseGeocode && reverseGeocode.length > 0) {
                     const address = reverseGeocode[0];
-                    setCityName(address.city || address.region || address.country || '');
+                    // Try multiple fields for better city name resolution
+                    const city = address.city || address.region || address.subregion || address.district || address.name || address.country || 'موقعي';
+                    setCityName(city);
                 }
             } catch (e) {
                 console.log('Error getting city name', e);
+                setCityName('موقعي');
             }
 
             // Calculate Prayer Times
@@ -56,9 +57,8 @@ export const PrayerScreen = () => {
             const times = new PrayerTimes(coordinates, date, params);
             setPrayerTimes(times);
 
-            // Calculate Qibla
-            const qibla = Qibla(coordinates);
-            setQiblaDirection(qibla);
+            // Schedule Notifications
+            schedulePrayerNotifications(times);
 
             setLoading(false);
         } catch (e) {
@@ -71,24 +71,50 @@ export const PrayerScreen = () => {
         refreshLocation();
     }, []);
 
-    // Compass Logic
+    // Update Countdown Timer
     useEffect(() => {
-        const subscription = Magnetometer.addListener(data => {
-            const { x, y } = data;
-            let angle = Math.atan2(y, x) * (180 / Math.PI); // Angle in degrees
-            angle = angle - 90; // Adjust for mobile orientation
-            if (angle < 0) {
-                angle = angle + 360;
+        if (!prayerTimes) return;
+
+        const interval = setInterval(() => {
+            const now = new Date();
+            const next = prayerTimes.nextPrayer();
+
+            if (next === Prayer.None) {
+                setNextPrayer('fajr'); // Assumption for next cycle
+                setTimeRemaining('');
+                return;
             }
-            setCompassHeading(angle);
-        });
 
-        Magnetometer.setUpdateInterval(100);
+            const nextPrayerTime = prayerTimes.timeForPrayer(next);
+            if (nextPrayerTime) {
+                const diff = nextPrayerTime.getTime() - now.getTime();
+                if (diff > 0) {
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                    setTimeRemaining(`${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
 
-        return () => {
-            subscription && subscription.remove();
-        };
-    }, []);
+                    // Map Adhan Prayer enum to our string keys
+                    const prayerKeyMap: { [key: string]: string } = {
+                        [Prayer.Fajr]: 'fajr',
+                        [Prayer.Sunrise]: 'sunrise',
+                        [Prayer.Dhuhr]: 'dhuhr',
+                        [Prayer.Asr]: 'asr',
+                        [Prayer.Maghrib]: 'maghrib',
+                        [Prayer.Isha]: 'isha',
+                    };
+                    setNextPrayer(prayerKeyMap[next] || null);
+                } else {
+                    // Time passed, refresh to get next prayer
+                    // Ideally we would recalculate for the next day if Isha passed, 
+                    // but simply refreshing location/times works for now to reset
+                    refreshLocation();
+                }
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [prayerTimes]);
 
     const formatTime = (date: Date) => {
         return date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
@@ -127,11 +153,6 @@ export const PrayerScreen = () => {
         );
     }
 
-    // Calculate rotation for Qibla arrow
-    // If phone points North (0), Qibla is at qiblaDirection.
-    // We need to rotate the arrow by (qiblaDirection - compassHeading).
-    const arrowRotation = qiblaDirection - compassHeading;
-
     return (
         <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
             <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -145,16 +166,49 @@ export const PrayerScreen = () => {
                     ) : null}
                 </View>
 
-                {/* Prayer Times Card */}
+                {/* Next Prayer Countdown Card */}
+                {nextPrayer && timeRemaining ? (
+                    <View style={[styles.countdownCard, { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1 }]}>
+                        <Text style={[styles.nextPrayerLabel, { color: colors.subtext }]}>الصلاة القادمة</Text>
+                        <Text style={[styles.nextPrayerName, { color: colors.primary }]}>{getPrayerName(nextPrayer)}</Text>
+                        <Text style={[styles.countdownTimer, { color: colors.text }]}>{timeRemaining}</Text>
+                        <Text style={[styles.timeLeftLabel, { color: colors.subtext }]}>متبقي على الأذان</Text>
+                    </View>
+                ) : null}
+
+                {/* Prayer Times List */}
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    {prayerTimes && ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'].map((prayer) => (
-                        <View key={prayer} style={[styles.prayerRow, { borderBottomColor: colors.border }]}>
-                            <Text style={[styles.prayerName, { color: colors.text }]}>{getPrayerName(prayer)}</Text>
-                            <Text style={[styles.prayerTime, { color: colors.primary }]}>
-                                {formatTime((prayerTimes as any)[prayer])}
-                            </Text>
-                        </View>
-                    ))}
+                    {prayerTimes && ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'].map((prayer) => {
+                        const isNext = nextPrayer === prayer;
+                        return (
+                            <View
+                                key={prayer}
+                                style={[
+                                    styles.prayerRow,
+                                    { borderBottomColor: colors.border },
+                                    isNext && { backgroundColor: colors.background + '80', borderRadius: 8, paddingHorizontal: 8, borderColor: colors.primary, borderWidth: 1 }
+                                ]}
+                            >
+                                <View style={styles.prayerNameContainer}>
+                                    <Text style={[
+                                        styles.prayerName,
+                                        { color: isNext ? colors.primary : colors.text },
+                                        isNext && { fontWeight: 'bold' }
+                                    ]}>
+                                        {getPrayerName(prayer)}
+                                    </Text>
+                                    {isNext && <View style={[styles.dot, { backgroundColor: colors.primary }]} />}
+                                </View>
+                                <Text style={[
+                                    styles.prayerTime,
+                                    { color: isNext ? colors.primary : colors.subtext },
+                                    isNext && { fontWeight: 'bold', fontSize: 20 }
+                                ]}>
+                                    {formatTime((prayerTimes as any)[prayer])}
+                                </Text>
+                            </View>
+                        );
+                    })}
                 </View>
 
                 <TouchableOpacity
@@ -164,27 +218,6 @@ export const PrayerScreen = () => {
                     <Ionicons name="refresh" size={20} color={colors.primary} />
                     <Text style={[styles.refreshText, { color: colors.primary }]}>تحديث الموقع</Text>
                 </TouchableOpacity>
-
-                {/* Qibla Compass */}
-                <Text style={[styles.subtitle, { color: colors.text }]}>اتجاه القبلة</Text>
-                <View style={[styles.compassContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={[styles.compassCircle, { borderColor: colors.border }]}>
-                        <Ionicons
-                            name="arrow-up"
-                            size={48}
-                            color={colors.primary}
-                            style={{
-                                transform: [{ rotate: `${arrowRotation}deg` }]
-                            }}
-                        />
-                    </View>
-                    <Text style={[styles.qiblaText, { color: colors.subtext }]}>
-                        {Math.round(qiblaDirection)}° من الشمال
-                    </Text>
-                    <Text style={[styles.calibrationText, { color: colors.subtext }]}>
-                        حرك الهاتف على شكل 8 للمعايرة
-                    </Text>
-                </View>
 
             </ScrollView>
         </SafeAreaView>
@@ -233,13 +266,42 @@ const styles = StyleSheet.create({
         fontFamily: typography.fontFamily,
         fontSize: typography.sizes.md,
     },
-    subtitle: {
+    countdownCard: {
+        borderRadius: 20,
+        padding: 24,
+        alignItems: 'center',
+        marginBottom: 24,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    nextPrayerLabel: {
+        color: 'rgba(255,255,255,0.8)',
         fontFamily: typography.fontFamily,
-        fontSize: typography.sizes.lg,
-        fontWeight: typography.weights.bold,
-        marginTop: 30,
-        marginBottom: 16,
-        textAlign: 'center',
+        fontSize: 14,
+        marginBottom: 4,
+    },
+    nextPrayerName: {
+        color: '#FFF',
+        fontFamily: typography.fontFamily,
+        fontSize: 32,
+        fontWeight: 'bold',
+        marginBottom: 8,
+    },
+    countdownTimer: {
+        color: '#FFF',
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+        fontSize: 36,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+    },
+    timeLeftLabel: {
+        color: 'rgba(255,255,255,0.8)',
+        fontFamily: typography.fontFamily,
+        fontSize: 12,
+        marginTop: 4,
     },
     card: {
         borderRadius: 20,
@@ -249,17 +311,28 @@ const styles = StyleSheet.create({
     prayerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingVertical: 12,
+        alignItems: 'center',
+        paddingVertical: 14,
         borderBottomWidth: 1,
+    },
+    prayerNameContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     prayerName: {
         fontFamily: typography.fontFamily,
         fontSize: typography.sizes.lg,
     },
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
     prayerTime: {
         fontFamily: typography.fontFamily,
         fontSize: typography.sizes.lg,
-        fontWeight: typography.weights.bold,
+        fontWeight: typography.weights.medium,
     },
     refreshButton: {
         flexDirection: 'row',
@@ -268,7 +341,7 @@ const styles = StyleSheet.create({
         padding: 12,
         borderRadius: 12,
         borderWidth: 1,
-        marginTop: 16,
+        marginTop: 24,
         gap: 8,
     },
     refreshText: {
@@ -286,30 +359,5 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontFamily: typography.fontFamily,
         fontSize: typography.sizes.md,
-    },
-    compassContainer: {
-        alignItems: 'center',
-        padding: 30,
-        borderRadius: 20,
-        borderWidth: 1,
-    },
-    compassCircle: {
-        width: 150,
-        height: 150,
-        borderRadius: 75,
-        borderWidth: 2,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    qiblaText: {
-        fontFamily: typography.fontFamily,
-        fontSize: typography.sizes.sm,
-    },
-    calibrationText: {
-        fontFamily: typography.fontFamily,
-        fontSize: 10,
-        marginTop: 8,
-        opacity: 0.7,
     },
 });
