@@ -1,114 +1,114 @@
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
+import { StyleSheet, View, I18nManager } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { DailyScreen } from './src/screens/DailyScreen';
-import { FavoritesScreen } from './src/screens/FavoritesScreen';
-import { TasbihScreen } from './src/screens/TasbihScreen';
-import { PrayerScreen } from './src/screens/PrayerScreen';
-import { AdhkarScreen } from './src/screens/AdhkarScreen';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors } from './src/hooks/useThemeColors';
-import { typography } from './src/theme/typography';
-import { View, ActivityIndicator } from 'react-native';
-import { useFonts } from 'expo-font';
+import * as Font from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+
+// Import Screens
+import { HomeScreen } from './src/screens/HomeScreen';
+import { QuranScreen } from './src/screens/QuranScreen';
+import { AdhkarScreen } from './src/screens/AdhkarScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+
+import { scheduleDailyReminder, registerForPushNotificationsAsync } from './src/utils/notifications';
+
+// Import Store and Theme
+import { useAppStore } from './src/storage/useAppStore';
+import { colors } from './src/theme/colors';
+
+// Force RTL
+I18nManager.forceRTL(true);
+I18nManager.allowRTL(true);
+
+SplashScreen.preventAutoHideAsync();
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
-  const colors = useThemeColors();
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded] = Font.useFonts({
     'Amiri-Regular': require('./assets/fonts/Amiri-Regular.ttf'),
     'Amiri-Bold': require('./assets/fonts/Amiri-Bold.ttf'),
   });
 
+  useEffect(() => {
+    registerForPushNotificationsAsync();
+  }, []);
+
+  const isDarkMode = useAppStore((state) => state.isDarkMode);
+  const theme = isDarkMode ? colors.dark : colors.light;
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
   if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#059669" />
-      </View>
-    );
+    return null;
   }
 
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: colors.card,
-            borderTopColor: colors.border,
-            elevation: 8,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: -4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            paddingTop: 12,
-            minHeight: 90,
-          },
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.subtext,
-          tabBarLabelStyle: {
-            fontFamily: typography.fontFamily,
-            fontSize: 12,
-            fontWeight: '500',
-          },
-        })}
-      >
-        <Tab.Screen
-          name="Daily"
-          component={DailyScreen}
-          options={{
-            title: 'الورد اليومي',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons name={focused ? "book" : "book-outline"} size={size} color={color} />
-            ),
-          }}
-        />
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      <NavigationContainer>
+        <Tab.Navigator
+          screenOptions={({ route }) => ({
+            headerShown: false,
+            tabBarIcon: ({ focused, color, size }) => {
+              let iconName: any;
 
-        <Tab.Screen
-          name="Prayer"
-          component={PrayerScreen}
-          options={{
-            title: 'الصلاة',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons name={focused ? "time" : "time-outline"} size={size} color={color} />
-            ),
-          }}
-        />
+              if (route.name === 'Home') {
+                iconName = focused ? 'home' : 'home-outline';
+              } else if (route.name === 'Quran') {
+                iconName = focused ? 'book' : 'book-outline';
+              } else if (route.name === 'Adhkar') {
+                iconName = focused ? 'heart' : 'heart-outline';
+              } else if (route.name === 'Settings') {
+                iconName = focused ? 'settings' : 'settings-outline';
+              }
 
-        <Tab.Screen
-          name="Adhkar"
-          component={AdhkarScreen}
-          options={{
-            title: 'الأذكار',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons name={focused ? "moon" : "moon-outline"} size={size} color={color} />
-            ),
-          }}
-        />
-
-        <Tab.Screen
-          name="Tasbih"
-          component={TasbihScreen}
-          options={{
-            title: 'التسبيح',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons name={focused ? "finger-print" : "finger-print-outline"} size={size} color={color} />
-            ),
-          }}
-        />
-
-        <Tab.Screen
-          name="Favorites"
-          component={FavoritesScreen}
-          options={{
-            title: 'المفضلة',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons name={focused ? "heart" : "heart-outline"} size={size} color={color} />
-            ),
-          }}
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
+              return <Ionicons name={iconName} size={size} color={color} />;
+            },
+            tabBarActiveTintColor: theme.primary,
+            tabBarInactiveTintColor: theme.subtext,
+            tabBarStyle: {
+              backgroundColor: theme.surface,
+              borderTopColor: theme.border,
+              height: 70,
+              paddingBottom: 10,
+              paddingTop: 10,
+            },
+            tabBarLabelStyle: {
+              fontFamily: 'Amiri-Regular',
+              fontSize: 12,
+            },
+          })}
+        >
+          <Tab.Screen 
+            name="Home" 
+            component={HomeScreen} 
+            options={{ title: 'الرئيسية' }}
+          />
+          <Tab.Screen 
+            name="Quran" 
+            component={QuranScreen} 
+            options={{ title: 'المصحف' }}
+          />
+          <Tab.Screen 
+            name="Adhkar" 
+            component={AdhkarScreen} 
+            options={{ title: 'الأذكار' }}
+          />
+          <Tab.Screen 
+            name="Settings" 
+            component={SettingsScreen} 
+            options={{ title: 'الإعدادات' }}
+          />
+        </Tab.Navigator>
+      </NavigationContainer>
+    </View>
   );
 }
