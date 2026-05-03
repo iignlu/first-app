@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "آية اليوم",
+    "name": "رفيق البقرة",
     "slug": "ayah-today",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,6 +17,8 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "audio",
+          "audio",
+          "audio",
           "audio"
         ],
         "NSLocationWhenInUseUsageDescription": "نحتاج معرفة موقعك لحساب مواقيت الصلاة واتجاه القبلة بدقة.",
@@ -25,6 +27,10 @@
     },
     "android": {
       "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "RECEIVE_BOOT_COMPLETED",
@@ -47,6 +53,12 @@
         "projectId": "95c53803-d0ed-4ae7-8fcf-b7a19f3cf54e"
       }
     },
-    "owner": "iignlu"
+    "owner": "iignlu",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/95c53803-d0ed-4ae7-8fcf-b7a19f3cf54e"
+    }
   }
 }

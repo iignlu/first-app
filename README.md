@@ -1,16 +1,14 @@
-# آية اليوم (Ayah Today)
+# رفيق البقرة (Al-Baqarah Companion)
 
-An intuitive and comprehensive mobile application built with React Native and Expo, designed to help you stay connected with your daily Islamic practices.
+تطبيق إسلامي احترافي متخصص في قراءة سورة البقرة يومياً مع تتبع التقدم والحفاظ على الأوراد والأذكار.
 
-📱 **Live App Link:** [https://ayah-today.expo.app/](https://ayah-today.expo.app/)
+## المميزات الرئيسية (Features)
 
-## Features
-
-- 📖 **الورد اليومي (Daily Ayah):** Get a daily Quranic verse to reflect upon.
-- 🕌 **الصلاة (Prayer Times):** Accurate prayer times and Qibla direction based on your location.
-- 📿 **الأذكار (Adhkar):** Morning and evening adhkar for daily supplications.
-- 🖐️ **التسبيح (Tasbih):** A digital tasbih to keep track of your dhikr.
-- ❤️ **المفضلة (Favorites):** Save your favorite ayahs and adhkar for quick access.
+- 📖 **قراءة سورة البقرة:** نص قرآني معتمد بالرسم العثماني مع حفظ تلقائي لمكان التوقف.
+- 📈 **تتبع التقدم:** لوحة تحكم تعرض نسبة الإنجاز وسلاسل القراءة اليومية (Streaks).
+- 📿 **الأذكار اليومية:** أذكار الصباح والمساء مع عداد تفاعلي وتنبيهات للاهتزاز.
+- 🔔 **تنبيهات مخصصة:** نظام تنبيهات يومي لتذكيرك بوردك من سورة البقرة.
+- 🎨 **تصميم عصري:** واجهة مستخدم هادئة تدعم الوضعين الليلي والنهاري مع دعم كامل للغة العربية (RTL).
 
 ## Built With
 
