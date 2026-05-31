@@ -1,6 +1,30 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+// Web-safe storage engine using browser-native localStorage
+const webStorage = {
+  getItem: (name: string) => {
+    try {
+      return localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch {}
+  },
+  removeItem: (name: string) => {
+    try {
+      localStorage.removeItem(name);
+    } catch {}
+  }
+};
+
+const storageEngine = Platform.OS === 'web' ? webStorage : AsyncStorage;
 
 interface AppState {
   userName: string; // User's customized name
@@ -164,7 +188,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'al-baqara-page-storage-v2',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => storageEngine),
     }
   )
 );
