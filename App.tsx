@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect } from 'react';
-import { StyleSheet, View, I18nManager } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, I18nManager, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,43 +10,71 @@ import { StatusBar } from 'expo-status-bar';
 // Import Screens
 import { HomeScreen } from './src/screens/HomeScreen';
 import { QuranScreen } from './src/screens/QuranScreen';
-import { AdhkarScreen } from './src/screens/AdhkarScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
-
-import { scheduleDailyReminder, registerForPushNotificationsAsync } from './src/utils/notifications';
 
 // Import Store and Theme
 import { useAppStore } from './src/storage/useAppStore';
 import { colors } from './src/theme/colors';
 
-// Force RTL
-I18nManager.forceRTL(true);
-I18nManager.allowRTL(true);
+// Force RTL layout on native platforms. Web direction is handled in useEffect below.
+if (Platform.OS !== 'web') {
+  I18nManager.forceRTL(true);
+  I18nManager.allowRTL(true);
+}
 
-SplashScreen.preventAutoHideAsync();
+// Prevent splash screen from auto-hiding on native platforms
+if (Platform.OS !== 'web') {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+}
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
-  const [fontsLoaded] = Font.useFonts({
+  const [fontsLoaded, fontError] = Font.useFonts({
     'Amiri-Regular': require('./assets/fonts/Amiri-Regular.ttf'),
     'Amiri-Bold': require('./assets/fonts/Amiri-Bold.ttf'),
   });
 
+  const [fontTimeout, setFontTimeout] = useState(false);
+
   useEffect(() => {
-    registerForPushNotificationsAsync();
+    // In web/browser environments, set document attributes for proper RTL layout
+    if (Platform.OS === 'web') {
+      try {
+        document.documentElement.dir = 'rtl';
+        document.documentElement.lang = 'ar';
+      } catch (e) {
+        console.warn('Failed to set HTML document attributes:', e);
+      }
+    }
+
+    // Set a 1.5 second safety timeout to bypass font loading if it gets stuck (common on Web)
+    const timer = setTimeout(() => {
+      setFontTimeout(true);
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const isDarkMode = useAppStore((state) => state.isDarkMode);
   const theme = isDarkMode ? colors.dark : colors.light;
 
-  useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
+  // On Web, render instantly to avoid blank white pages during font loading.
+  // Browser will apply Amiri font dynamically once loaded.
+  const isLoaded = Platform.OS === 'web' || fontsLoaded || fontError || fontTimeout;
 
-  if (!fontsLoaded) {
+  useEffect(() => {
+    if (isLoaded && Platform.OS !== 'web') {
+      if (fontError) {
+        console.warn('Error loading Amiri fonts, using system fallback:', fontError);
+      }
+      SplashScreen.hideAsync().catch((err) => {
+        console.warn('Error hiding splash screen:', err);
+      });
+    }
+  }, [isLoaded, fontError]);
+
+  if (!isLoaded) {
     return null;
   }
 
@@ -64,8 +92,6 @@ export default function App() {
                 iconName = focused ? 'home' : 'home-outline';
               } else if (route.name === 'Quran') {
                 iconName = focused ? 'book' : 'book-outline';
-              } else if (route.name === 'Adhkar') {
-                iconName = focused ? 'heart' : 'heart-outline';
               } else if (route.name === 'Settings') {
                 iconName = focused ? 'settings' : 'settings-outline';
               }
@@ -78,12 +104,12 @@ export default function App() {
               backgroundColor: theme.surface,
               borderTopColor: theme.border,
               height: 70,
-              paddingBottom: 10,
-              paddingTop: 10,
+              paddingBottom: 12,
+              paddingTop: 12,
             },
             tabBarLabelStyle: {
               fontFamily: 'Amiri-Regular',
-              fontSize: 12,
+              fontSize: 13,
             },
           })}
         >
@@ -96,11 +122,6 @@ export default function App() {
             name="Quran" 
             component={QuranScreen} 
             options={{ title: 'المصحف' }}
-          />
-          <Tab.Screen 
-            name="Adhkar" 
-            component={AdhkarScreen} 
-            options={{ title: 'الأذكار' }}
           />
           <Tab.Screen 
             name="Settings" 
